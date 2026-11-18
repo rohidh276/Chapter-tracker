@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="Track your Maths, Physics and Chemistry chapters.">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png" type="image/png">
+<title>Chapter Tracker</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;padding:18px;background:#000;color:#fff;
+ font-family:Arial,sans-serif;
+}
+.app{max-width:600px;margin:auto}
+.top{display:flex;justify-content:flex-end;position:relative;margin-bottom:18px}
+button{cursor:pointer;border:0;border-radius:10px;padding:11px 15px;font-size:14px;color:#fff}
+.dots{background:#242424;font-size:23px;padding:5px 13px}
+.menu{
+ display:none;position:absolute;right:0;top:43px;
+ background:#242424;color:#fff;padding:17px;width:245px;
+ border:1px solid #444;border-radius:12px;
+ box-shadow:0 4px 20px #000;z-index:5
+}
+.menu.open{display:block}
+.menu label{display:block;margin:14px 0;font-size:14px;color:#fff}
+.menu input{accent-color:#fff}
+.subjects{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.subject{background:#1a1a1a;color:#fff;padding:14px 5px;font-weight:bold;border:1px solid #333}
+.subject.active{background:#383838;border:1px solid #777}
+.count{display:block;font-size:12px;font-weight:normal;margin-top:6px;color:#ddd}
+.progress{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;margin:18px 0}
+.progress-top{display:flex;justify-content:space-between;align-items:center}
+.percent{font-size:23px;font-weight:bold;color:#fff}
+.track{height:9px;background:#383838;border-radius:20px;margin:12px 0;overflow:hidden}
+.fill{height:100%;background:#aaa;width:0%;transition:width .2s}
+.small{font-size:12px;color:#fff}
+.entry{display:flex;gap:8px;margin:15px 0}
+input[type=text]{
+ min-width:0;flex:1;padding:13px;background:#181818;
+ border:1px solid #444;border-radius:10px;
+ font-size:15px;color:#fff
+}
+input::placeholder{color:#aaa}
+.add{background:#383838;color:#fff;border:1px solid #555}
+.chapter{
+ display:flex;align-items:center;gap:10px;
+ background:#242424;border:1px solid #333;
+ padding:13px;border-radius:11px;margin:9px 0;
+ transition:opacity .2s
+}
+.chapter.completed{opacity:.65}
+.chapter input{width:19px;height:19px;accent-color:#fff}
+.chapter-name{flex:1;overflow-wrap:anywhere;font-size:15px;color:#fff}
+.completed .chapter-name{text-decoration:line-through;color:#bbb}
+.actions{display:flex;gap:3px}
+.action{background:transparent;padding:7px;font-size:17px;color:#fff}
+.delete{color:#fff}
+.empty{
+ text-align:center;color:#fff;padding:35px 10px;
+ background:#1a1a1a;border:1px solid #333;border-radius:12px
+}
+h3{font-size:18px;margin-top:22px;color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="top">
+<button class="dots" id="menuBtn" aria-label="Open settings" aria-expanded="false">⋮</button>
+<div class="menu" id="menu">
+<strong>Settings</strong>
+<p style="font-size:13px;color:#fff">Completed chapter arrangement</p>
+<label><input type="radio" name="order" value="place"> Stay in place</label>
+<label><input type="radio" name="order" value="back" checked> Move to back</label>
+<p class="small">Applies to all subjects.</p>
+</div>
+</div>
+
+<div class="subjects">
+<button class="subject active" data-subject="Maths">▦<br>Maths<span class="count">0/0</span></button>
+<button class="subject" data-subject="Physics">⚛<br>Physics<span class="count">0/0</span></button>
+<button class="subject" data-subject="Chemistry">⚗<br>Chemistry<span class="count">0/0</span></button>
+</div>
+
+<div class="progress">
+<div class="progress-top">
+<strong id="progressTitle">Maths Progress</strong>
+<span class="percent" id="percent">0%</span>
+</div>
+<div class="track"><div class="fill" id="fill"></div></div>
+<div class="progress-top small">
+<span id="completedCount">0 completed</span>
+<span id="remainingCount">0 remaining</span>
+</div>
+</div>
+
+<h3 id="heading">Maths Chapters</h3>
+<div class="entry">
+<input type="text" id="chapterInput" placeholder="Enter chapter name" autocomplete="off">
+<button class="add" id="addBtn">+ Add</button>
+</div>
+<div id="chapterList"></div>
+</div>
+
+<script>
+let active="Maths";
+let editing=null;
+let chapters=[];
+let order="back";
+
+try {
+ chapters=JSON.parse(localStorage.getItem("chapterTrackerData")||"[]");
+ if (!Array.isArray(chapters)) chapters=[];
+ order=localStorage.getItem("chapterTrackerOrder")||"back";
+ if (!["back","place"].includes(order)) order="back";
+} catch(e) { chapters=[]; order="back"; }
+
+const $=id=>document.getElementById(id);
+
+function save(){
+ try {
+  localStorage.setItem("chapterTrackerData",JSON.stringify(chapters));
+  localStorage.setItem("chapterTrackerOrder",order);
+ } catch(e) {
+  alert("Your browser could not save the changes. Check your available storage.");
+ }
+}
+
+function render(){
+ const list=chapters.filter(c=>c.subject===active);
+ const done=list.filter(c=>c.done).length;
+ const percent=list.length?Math.round(done/list.length*100):0;
+
+ $("progressTitle").textContent=active+" Progress";
+ $("heading").textContent=active+" Chapters";
+ $("percent").textContent=percent+"%";
+ $("fill").style.width=percent+"%";
+ $("completedCount").textContent=done+" completed";
+ $("remainingCount").textContent=(list.length-done)+" remaining";
+
+ document.querySelectorAll(".subject").forEach(btn=>{
+  const s=btn.dataset.subject;
+  const arr=chapters.filter(c=>c.subject===s);
+  btn.classList.toggle("active",s===active);
+  btn.querySelector(".count").textContent=
+   arr.filter(c=>c.done).length+"/"+arr.length;
+ });
+
+ const sorted=order==="back"
+  ?[...list].sort((a,b)=>Number(a.done)-Number(b.done))
+  :list;
+
+ $("chapterList").innerHTML="";
+
+ if(!sorted.length){
+  $("chapterList").innerHTML=
+   '<div class="empty">No chapters added yet.<br><br>Add your first '+active+' chapter above.</div>';
+  return;
+ }
+
+ sorted.forEach(c=>{
+  const row=document.createElement("div");
+  row.className="chapter"+(c.done?" completed":"");
+
+  const checkbox=document.createElement("input");
+  checkbox.type="checkbox";
+  checkbox.checked=!!c.done;
+  checkbox.setAttribute("aria-label","Mark "+c.name+" completed");
+  checkbox.onchange=()=>{
+   c.done=checkbox.checked;
+   save();render();
+  };
+
+  const name=document.createElement("span");
+  name.className="chapter-name";
+  name.textContent=c.name;
+
+  const actions=document.createElement("div");
+  actions.className="actions";
+
+  const edit=document.createElement("button");
+  edit.className="action";
+  edit.textContent="✎";
+  edit.title="Edit chapter";
+  edit.setAttribute("aria-label","Edit "+c.name);
+  edit.onclick=()=>{
+   editing=c.id;
+   $("chapterInput").value=c.name;
+   $("chapterInput").focus();
+   $("addBtn").textContent="Save";
+  };
+
+  const del=document.createElement("button");
+  del.className="action delete";
+  del.textContent="⌫";
+  del.title="Delete chapter";
+  del.setAttribute("aria-label","Delete "+c.name);
+  del.onclick=()=>{
+   if(confirm("Delete "+c.name+"?")){
+    chapters=chapters.filter(x=>x.id!==c.id);
+    if(editing===c.id) {
+      editing=null;
+      $("chapterInput").value="";
+      $("addBtn").textContent="+ Add";
+    }
+    save();render();
+   }
+  };
+
+  actions.append(edit,del);
+  row.append(checkbox,name,actions);
+  $("chapterList").append(row);
+ });
+}
+
+function addChapter(){
+ const input=$("chapterInput");
+ const name=input.value.trim();
+ if(!name){input.focus();return;}
+
+ if(editing!==null){
+  const c=chapters.find(x=>x.id===editing);
+  if(c)c.name=name;
+  editing=null;
+  $("addBtn").textContent="+ Add";
+ }else{
+  chapters.push({
+   id:Date.now()+Math.random(),
+   subject:active,
+   name:name,
+   done:false
+  });
+ }
+
+ input.value="";
+ save();render();
+}
+
+$("addBtn").onclick=addChapter;
+$("chapterInput").addEventListener("keydown",e=>{
+ if(e.key==="Enter")addChapter();
+});
+
+document.querySelectorAll(".subject").forEach(btn=>{
+ btn.onclick=()=>{
+  active=btn.dataset.subject;
+  editing=null;
+  $("chapterInput").value="";
+  $("addBtn").textContent="+ Add";
+  render();
+ };
+});
+
+$("menuBtn").onclick=()=>{
+ const isOpen=$("menu").classList.toggle("open");
+ $("menuBtn").setAttribute("aria-expanded",String(isOpen));
+};
+
+document.addEventListener("click",e=>{
+ if(!$("menu").contains(e.target) && e.target!==$("menuBtn")){
+  $("menu").classList.remove("open");
+  $("menuBtn").setAttribute("aria-expanded","false");
+ }
+});
+
+document.querySelectorAll('input[name="order"]').forEach(r=>{
+ r.checked=r.value===order;
+ r.onchange=()=>{
+  order=r.value;
+  save();render();
+ };
+});
+
+render();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .catch(error => console.error("Service worker registration failed:", error));
+  });
+}
+</script>
+</body>
+</html>
